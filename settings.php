@@ -30,7 +30,18 @@ $cameras = cameras($db);
 $disabled = $editable ? '' : ' disabled';
 $nextName = sprintf('CAM %02d', count($cameras) + 1);
 
+/**
+ * Attributes for a toggle that asks "are you sure?" before it is switched on (and/or off) and then saves its
+ * form straight away, so a ticked box cannot be lost by leaving the page without clicking Save.
+ */
+function toggle_attrs(string $confirmOn = '', string $confirmOff = '', bool $autosave = true): string {
+    return ($confirmOn !== '' ? ' data-confirm-on="' . e($confirmOn) . '"' : '')
+        . ($confirmOff !== '' ? ' data-confirm-off="' . e($confirmOff) . '"' : '')
+        . ($autosave ? ' data-autosave' : '');
+}
+
 function camera_form(array $camera, string $disabled, bool $isNew = false): string {
+    $name = $camera['name'];
     ob_start();
     ?>
 <form method="post" class="camera-row" data-camera-form>
@@ -52,9 +63,21 @@ function camera_form(array $camera, string $disabled, bool $isNew = false): stri
     <?php endif; ?>
   </div>
   <div class="camera-toggles">
-    <label class="check"><input type="checkbox" name="is_enabled" value="1"<?= checked($camera['is_enabled']) . $disabled ?>> Enabled</label>
-    <label class="check"><input type="checkbox" name="motion_detection" value="1"<?= checked($camera['motion_detection']) . $disabled ?>> Motion &amp; person detection <small>snapshot, event clip and alert</small></label>
-    <label class="check"><input type="checkbox" name="continuous_recording" value="1"<?= checked($camera['continuous_recording']) . $disabled ?>> Continuous recording <small>saved in short segments</small></label>
+    <label class="check"><input type="checkbox" name="is_enabled" value="1"<?= checked($camera['is_enabled']) . $disabled . toggle_attrs(
+        '',
+        "Disable {$name}? It will stop streaming, recording and detecting until you enable it again.",
+        !$isNew
+    ) ?>> Enabled</label>
+    <label class="check"><input type="checkbox" name="motion_detection" value="1"<?= checked($camera['motion_detection']) . $disabled . toggle_attrs(
+        "Turn on motion & person detection for {$name}? Movement or a person in view will save a snapshot and clip and alert the owner, guards and administrators.",
+        "Turn off motion & person detection for {$name}? This camera will no longer raise alerts for movement or people.",
+        !$isNew
+    ) ?>> Motion &amp; person detection <small>snapshot, event clip and alert</small></label>
+    <label class="check"><input type="checkbox" name="continuous_recording" value="1"<?= checked($camera['continuous_recording']) . $disabled . toggle_attrs(
+        "Turn on continuous recording for {$name}? Everything it sees is saved, which uses more disk space (kept for the retention period).",
+        '',
+        !$isNew
+    ) ?>> Continuous recording <small>saved in short segments</small></label>
   </div>
 </form>
 <?php
@@ -127,9 +150,15 @@ page_header('System settings', $editable ? 'Changes apply to the monitoring stat
         <input class="input" type="number" name="event_cooldown_seconds" min="10" max="3600" value="<?= (int) $settings['event_cooldown_seconds'] ?>"<?= $disabled ?>>
         <small>Minimum gap between alerts from the same camera</small>
       </label>
-      <label class="check"><input type="checkbox" name="person_detection_enabled" value="1"<?= checked($settings['person_detection_enabled']) . $disabled ?>> Person detection
+      <label class="check"><input type="checkbox" name="person_detection_enabled" value="1"<?= checked($settings['person_detection_enabled']) . $disabled . toggle_attrs(
+          'Turn on person detection? The monitoring station downloads the AI model (about 5 MB) and raises a high-priority alert whenever it sees a person while alerts are armed.',
+          'Turn off person detection? People in view will no longer raise alerts, only general motion will.'
+      ) ?>> Person detection
         <small>Pretrained AI model (COCO-SSD) recognises people in the frame. Downloads about 5 MB the first time, so the station needs internet once.</small></label>
-      <label class="check"><input type="checkbox" name="fire_detection_enabled" value="1"<?= checked($settings['fire_detection_enabled']) . $disabled ?>> Flame-colour detection (experimental)
+      <label class="check"><input type="checkbox" name="fire_detection_enabled" value="1"<?= checked($settings['fire_detection_enabled']) . $disabled . toggle_attrs(
+          "Turn on flame-colour detection?\n\nLarge bright orange areas will raise a CRITICAL fire alert to the owner, guards and administrators. Orange objects or strong sunlight can cause false alarms, and it does not replace a smoke detector.",
+          'Turn off flame-colour detection? The cameras will no longer raise fire alerts.'
+      ) ?>> Flame-colour detection (experimental)
         <small>Flags large bright orange areas. Expect false alarms; not a replacement for smoke detectors.</small></label>
     </div>
   </div>

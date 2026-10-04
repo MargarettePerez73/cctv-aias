@@ -408,6 +408,32 @@
     $("[data-detect-webcams]")?.addEventListener("click", () => listWebcams(true))
   }
 
+  // Settings toggles: ask "are you sure?", undo the click on Cancel, otherwise save the form right away.
+  const SCROLL_KEY = "cctv.restoreScroll"
+  $$("input[data-confirm-on], input[data-confirm-off], input[data-autosave]").forEach((toggle) =>
+    toggle.addEventListener("change", () => {
+      const message = toggle.checked ? toggle.dataset.confirmOn : toggle.dataset.confirmOff
+      if (message && !window.confirm(message)) {
+        toggle.checked = !toggle.checked
+        return
+      }
+      if (!("autosave" in toggle.dataset)) return
+      try { sessionStorage.setItem(SCROLL_KEY, String(window.scrollY)) } catch {}
+      $$("button", toggle.form).forEach((button) => (button.disabled = true))
+      toggle.form.requestSubmit()
+    }),
+  )
+  // After an autosave, return to the toggle and repeat the saved / error message as a toast, since the
+  // message itself sits at the top of the page.
+  try {
+    const scroll = sessionStorage.getItem(SCROLL_KEY)
+    if (scroll !== null) {
+      sessionStorage.removeItem(SCROLL_KEY)
+      window.scrollTo(0, Number(scroll))
+      $$(".flash").forEach((flash) => toast(flash.textContent.trim(), flash.classList.contains("flash-error") ? "danger" : "success"))
+    }
+  } catch {}
+
   $$("[data-range]").forEach((range) => {
     const output = range.closest("label").querySelector("[data-range-output]")
     range.addEventListener("input", () => (output.textContent = range.value))
