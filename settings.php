@@ -53,7 +53,7 @@ function camera_form(array $camera, string $disabled, bool $isNew = false): stri
   </div>
   <div class="camera-toggles">
     <label class="check"><input type="checkbox" name="is_enabled" value="1"<?= checked($camera['is_enabled']) . $disabled ?>> Enabled</label>
-    <label class="check"><input type="checkbox" name="motion_detection" value="1"<?= checked($camera['motion_detection']) . $disabled ?>> Motion detection <small>snapshot, event clip and alert</small></label>
+    <label class="check"><input type="checkbox" name="motion_detection" value="1"<?= checked($camera['motion_detection']) . $disabled ?>> Motion &amp; person detection <small>snapshot, event clip and alert</small></label>
     <label class="check"><input type="checkbox" name="continuous_recording" value="1"<?= checked($camera['continuous_recording']) . $disabled ?>> Continuous recording <small>saved in short segments</small></label>
   </div>
 </form>
@@ -112,7 +112,7 @@ page_header('System settings', $editable ? 'Changes apply to the monitoring stat
   <div class="card">
     <div class="card-head"><div><h3>Threat detection</h3><p>Runs in the monitoring station browser</p></div></div>
     <div class="card-body stack">
-      <label class="field">Motion alerts
+      <label class="field">Motion &amp; person alerts
         <select class="input" name="motion_mode"<?= $disabled ?>>
           <option value="always"<?= selected($settings['motion_mode'], 'always') ?>>Always armed</option>
           <option value="after_hours"<?= selected($settings['motion_mode'], 'after_hours') ?>>Only outside business hours</option>
@@ -127,6 +127,8 @@ page_header('System settings', $editable ? 'Changes apply to the monitoring stat
         <input class="input" type="number" name="event_cooldown_seconds" min="10" max="3600" value="<?= (int) $settings['event_cooldown_seconds'] ?>"<?= $disabled ?>>
         <small>Minimum gap between alerts from the same camera</small>
       </label>
+      <label class="check"><input type="checkbox" name="person_detection_enabled" value="1"<?= checked($settings['person_detection_enabled']) . $disabled ?>> Person detection
+        <small>Pretrained AI model (COCO-SSD) recognises people in the frame. Downloads about 5 MB the first time, so the station needs internet once.</small></label>
       <label class="check"><input type="checkbox" name="fire_detection_enabled" value="1"<?= checked($settings['fire_detection_enabled']) . $disabled ?>> Flame-colour detection (experimental)
         <small>Flags large bright orange areas. Expect false alarms; not a replacement for smoke detectors.</small></label>
     </div>
@@ -147,6 +149,9 @@ page_header('System settings', $editable ? 'Changes apply to the monitoring stat
         <input class="input" type="number" name="segment_minutes" min="1" max="10" value="<?= (int) $settings['segment_minutes'] ?>"<?= $disabled ?>>
         <small>Shorter segments upload sooner and fit PHP&apos;s upload limit (<?= fmt_bytes(upload_limit_bytes()) ?>).</small>
       </label>
+      <p class="muted small">Cloud copy: <?= $config['cloud_sync_path'] !== ''
+          ? 'every snapshot and recording is also copied to <code>' . e($config['cloud_sync_path']) . '</code>'
+          : 'off. Set <code>cloud_sync_path</code> in app/config.php to a Google Drive or OneDrive folder.' ?></p>
       <p class="muted small">Last automatic cleanup: <?= e(time_ago($settings['last_retention_run'])) ?></p>
     </div>
   </div>

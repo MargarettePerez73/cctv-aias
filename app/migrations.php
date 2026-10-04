@@ -61,6 +61,13 @@ function migrations(): array {
             "UPDATE system_devices SET name = 'USB RFID reader (door terminal)'
              WHERE device_type = 'rfid_lock'",
         ],
+        // Pretrained person detector in the station browser, and copies to a cloud-synced folder.
+        '2026_10_04_001_person_detection_and_cloud_copy' => [
+            "ALTER TABLE security_events
+               MODIFY event_type ENUM('motion', 'fire', 'panic', 'access', 'tamper', 'person', 'other') NOT NULL",
+            "ALTER TABLE recordings ADD COLUMN IF NOT EXISTS cloud_backup_path VARCHAR(500) NULL AFTER checksum_sha256",
+            "INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('person_detection_enabled', '1')",
+        ],
     ];
 }
 

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 const EVENT_STATUSES = ['new', 'reviewing', 'resolved', 'false_alarm'];
-const EVENT_TYPES = ['motion', 'fire', 'panic', 'access', 'tamper', 'other'];
+const EVENT_TYPES = ['motion', 'fire', 'panic', 'access', 'tamper', 'person', 'other'];
 const RECORDING_MIMES = ['video/webm' => 'webm', 'video/mp4' => 'mp4'];
 
 const EVENT_STATUS_LABELS = [
@@ -18,6 +18,7 @@ const EVENT_TYPE_LABELS = [
     'panic' => 'Panic',
     'access' => 'Access',
     'tamper' => 'Tamper',
+    'person' => 'Person',
     'other' => 'Other',
 ];
 
@@ -56,6 +57,7 @@ function settings(PDO $db): array {
         'event_clip_seconds' => (int) ($values['event_clip_seconds'] ?? 10),
         'segment_minutes' => (int) ($values['segment_minutes'] ?? 2),
         'fire_detection_enabled' => ($values['fire_detection_enabled'] ?? '0') === '1',
+        'person_detection_enabled' => ($values['person_detection_enabled'] ?? '1') === '1',
         'last_retention_run' => $values['last_retention_run'] ?? null,
     ];
 }
@@ -87,10 +89,12 @@ function save_settings(PDO $db, array $user, array $input): void {
         save_setting($db, $key, (string) $value);
         $changed[$key] = $value;
     }
-    // Unchecked checkboxes are not submitted, so the flag is read explicitly.
-    $fire = !empty($input['fire_detection_enabled']) ? '1' : '0';
-    save_setting($db, 'fire_detection_enabled', $fire);
-    $changed['fire_detection_enabled'] = $fire;
+    // Unchecked checkboxes are not submitted, so the flags are read explicitly.
+    foreach (['fire_detection_enabled', 'person_detection_enabled'] as $key) {
+        $flag = !empty($input[$key]) ? '1' : '0';
+        save_setting($db, $key, $flag);
+        $changed[$key] = $flag;
+    }
     audit($db, $user['id'], 'UPDATE_SETTINGS', 'settings', null, $changed);
 }
 
@@ -251,8 +255,9 @@ function dispatch_alerts(PDO $db, int $eventId): void {
 function create_event(PDO $db, array $data): int {
     $db->prepare(
         "INSERT INTO security_events
-         (camera_id, triggered_by, event_type, severity, title, description, snapshot_path, cloud_backup_status, status, detected_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'not_required', 'new', NOW())"
+         (camera_id, triggered_by, event_type, severity, title, description, snapshot_path,
+          cloud_backup_path, cloud_backup_status, status, detected_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', NOW())"
     )->execute([
         $data['camera_id'] ?? null,
         $data['triggered_by'] ?? null,
@@ -261,6 +266,8 @@ function create_event(PDO $db, array $data): int {
         $data['title'],
         $data['description'] ?? null,
         $data['snapshot_path'] ?? null,
+        $data['cloud_backup_path'] ?? null,
+        $data['cloud_backup_status'] ?? 'not_required',
     ]);
     $eventId = (int) $db->lastInsertId();
     dispatch_alerts($db, $eventId);

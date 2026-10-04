@@ -70,6 +70,7 @@ const EVENT_ICONS = [
     'panic' => ['siren', 'tone-solid-red'],
     'access' => ['lock', 'tone-blue'],
     'tamper' => ['eye-off', 'tone-violet'],
+    'person' => ['user', 'tone-teal'],
     'other' => ['help', 'tone-slate'],
 ];
 

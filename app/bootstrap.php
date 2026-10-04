@@ -17,6 +17,7 @@ $config += [
     'storage_path' => dirname(__DIR__) . '/storage',
     'timezone' => 'Asia/Manila',
     'session_name' => 'cctv_session',
+    'cloud_sync_path' => '',
 ];
 date_default_timezone_set($config['timezone']);
 

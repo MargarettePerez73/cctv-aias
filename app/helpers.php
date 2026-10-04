@@ -353,6 +353,29 @@ function absolute_storage_file(array $config, ?string $relative): ?string {
     return is_file($path) ? $path : null;
 }
 
+/**
+ * Copies a stored file into the cloud-synced folder (config cloud_sync_path), into a folder per day and
+ * named by date and time, e.g. 2026-10-04/2026-10-04_21-30-05_storage-room_person.jpg. Returns that
+ * relative name, or null when no cloud folder is configured. Throws when the copy fails.
+ */
+function cloud_copy(array $config, string $relative, string $location, string $kind): ?string {
+    $root = rtrim((string) ($config['cloud_sync_path'] ?? ''), '/\\');
+    if ($root === '') return null;
+    $source = absolute_storage_file($config, $relative) ?? throw new RuntimeException('Stored file is missing');
+    $slug = trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower($location)), '-') ?: 'camera';
+    $day = date('Y-m-d');
+    $directory = $root . '/' . $day;
+    if (!is_dir($directory) && !mkdir($directory, 0750, true) && !is_dir($directory)) {
+        throw new RuntimeException('Unable to create the cloud folder');
+    }
+    $base = date('Y-m-d_H-i-s') . "_{$slug}_{$kind}";
+    $extension = pathinfo($relative, PATHINFO_EXTENSION);
+    $name = "{$base}.{$extension}";
+    for ($n = 2; file_exists("{$directory}/{$name}"); $n++) $name = "{$base}-{$n}.{$extension}";
+    if (!copy($source, "{$directory}/{$name}")) throw new RuntimeException('Unable to copy to the cloud folder');
+    return "{$day}/{$name}";
+}
+
 /** Streams a stored file with HTTP Range support so browsers can seek inside video. */
 function stream_file(string $path, string $mime, ?string $downloadName = null): never {
     $size = filesize($path);

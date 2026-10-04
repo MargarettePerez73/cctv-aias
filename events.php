@@ -59,6 +59,12 @@ if ($eventId) {
       <dt>Detected</dt><dd><?= e(fmt_datetime($event['detected_at'])) ?></dd>
       <dt>Location</dt><dd><?= $event['location'] ? e("{$event['location']} ({$event['camera_name']})") : '—' ?></dd>
       <dt>Details</dt><dd><?= e($event['description'] ?: '—') ?></dd>
+      <dt>Cloud copy</dt><dd><?= match ($event['cloud_backup_status']) {
+          'synced' => e($event['cloud_backup_path']),
+          'failed' => '<span class="text-danger">Copy failed. The local copy is safe.</span>',
+          'pending' => 'Pending',
+          default => 'Local storage only',
+      } ?></dd>
       <dt>Triggered by</dt><dd><?= e($event['triggered_by_name'] ?: 'Automatic detection') ?></dd>
       <dt>Reviewed</dt><dd><?= $event['reviewed_by_name'] ? e($event['reviewed_by_name'] . ' · ' . fmt_datetime($event['reviewed_at'])) : 'Not yet' ?></dd>
       <dt>Notes</dt><dd><?= nl2br(e($event['resolution_notes'] ?: '—')) ?></dd>

@@ -20,8 +20,23 @@
   const CONFIG_MS = 20000
   const WARMUP_MS = 4000
   const DARK_TAMPER_MS = 10000
+  const PERSON_MS = 1000
+  const PERSON_MIN_SCORE = 0.55
+
+  // Pretrained COCO-SSD object detector: recognises people out of the box, no training or labeled video needed.
+  const DETECTOR_SCRIPTS = [
+    ["tf", "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"],
+    ["cocoSsd", "https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"],
+  ]
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = Object.assign(document.createElement("script"), { src, onload: resolve, onerror: () => reject(new Error(`Could not load ${src}`)) })
+      document.head.append(script)
+    })
+  }
 
   function preferredMimeType() {
     const candidates = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"]
@@ -81,6 +96,8 @@
       this.lastRaised = {}
       this.motionStreak = 0
       this.fireStreak = 0
+      this.personStreak = 0
+      this.personBusy = false
       this.darkSince = 0
       this.segment = null
       this.manual = null
@@ -154,6 +171,7 @@
       this.previous = null
       this.patch({ status: "live" })
       this.timers.push(setInterval(() => this.analyse(), ANALYSIS_MS))
+      this.timers.push(setInterval(() => this.detectPeople(), PERSON_MS))
       this.timers.push(setInterval(() => this.relayFrame(), RELAY_MS))
       this.syncContinuous()
       this.station.sendHeartbeat()
@@ -275,11 +293,46 @@
       }
     }
 
-    /** JPEG of the current frame with the camera name and time burned in, like a DVR overlay. */
-    captureFrame(quality) {
+    /** Runs while armed (same schedule as motion alerts); two detections in a row raise the event. */
+    async detectPeople() {
+      const settings = this.station.settings
+      if (this.personBusy || !settings?.person_detection_enabled || this.video.readyState < 2) return
+      if (!this.state.armed || Date.now() - this.startedAt < WARMUP_MS) {
+        this.personStreak = 0
+        return
+      }
+      this.personBusy = true
+      try {
+        const model = await this.station.personDetector()
+        if (!model || this.stopped) return
+        const people = (await model.detect(this.video, 10, PERSON_MIN_SCORE)).filter((found) => found.class === "person")
+        this.personStreak = people.length ? this.personStreak + 1 : 0
+        if (this.personStreak >= 2) {
+          this.personStreak = 0
+          const confidence = Math.round(Math.max(...people.map((found) => found.score)) * 100)
+          const count = `${people.length} ${people.length === 1 ? "person" : "people"}`
+          this.raise("person", `${count} · ${confidence}% confidence`, people.map((found) => found.bbox))
+        }
+      } catch {
+        // Skip this frame; the next tick tries again.
+      } finally {
+        this.personBusy = false
+      }
+    }
+
+    /**
+     * JPEG of the current frame with the camera name and time burned in, like a DVR overlay.
+     * Boxes are [x, y, width, height] in video pixels and are outlined on the snapshot.
+     */
+    captureFrame(quality, boxes = []) {
       if (this.video.readyState < 2) return Promise.resolve(null)
       const context = this.frameCanvas.getContext("2d")
       context.drawImage(this.video, 0, 0, 640, 360)
+      const scaleX = 640 / (this.video.videoWidth || 640)
+      const scaleY = 360 / (this.video.videoHeight || 360)
+      context.strokeStyle = "#ef4444"
+      context.lineWidth = 3
+      boxes.forEach(([x, y, width, height]) => context.strokeRect(x * scaleX, y * scaleY, width * scaleX, height * scaleY))
       context.fillStyle = "rgba(0,0,0,.55)"
       context.fillRect(0, 334, 640, 26)
       context.fillStyle = "#fff"
@@ -307,7 +360,7 @@
       }
     }
 
-    async raise(type, score) {
+    async raise(type, score, boxes = []) {
       const settings = this.station.settings
       const cooldown = (settings?.event_cooldown_seconds ?? 60) * 1000
       const now = Date.now()
@@ -318,12 +371,12 @@
       form.append("camera_id", this.camera.id)
       form.append("event_type", type)
       form.append("score", score)
-      const snapshot = await this.captureFrame(0.85)
+      const snapshot = await this.captureFrame(0.85, boxes)
       if (snapshot) form.append("snapshot", snapshot, "snapshot.jpg")
       try {
         const result = await api("event-create", { form })
         if (result.suppressed) return
-        const label = { motion: "Motion", fire: "Possible fire", tamper: "Camera tampering" }[type]
+        const label = { motion: "Motion", fire: "Possible fire", tamper: "Camera tampering", person: "Person" }[type]
         toast(`${label} detected · ${this.camera.location}`, type === "motion" ? "warning" : "danger")
         const clipSeconds = settings?.event_clip_seconds ?? 0
         if (clipSeconds > 0 && type !== "tamper" && this.stream && !this.eventClip) {
@@ -539,6 +592,23 @@
         runner.start()
       }
       this.renderSummary()
+    }
+
+    /** One model shared by all cameras, loaded on first use. A failed load is retried after a minute. */
+    personDetector() {
+      this.detector ??= (async () => {
+        try {
+          for (const [global, src] of DETECTOR_SCRIPTS) if (!window[global]) await loadScript(src)
+          const model = await window.cocoSsd.load({ base: "lite_mobilenet_v2" })
+          toast("Person detection is ready.", "info")
+          return model
+        } catch {
+          toast("Person detection could not load. The station needs internet the first time. Motion and fire detection still work.", "danger")
+          setTimeout(() => (this.detector = null), 60000)
+          return null
+        }
+      })()
+      return this.detector
     }
 
     sendHeartbeat() {

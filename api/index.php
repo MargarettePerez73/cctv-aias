@@ -68,7 +68,7 @@ $routes = [
         stream_file($path, 'image/jpeg');
     }],
 
-    // Raised by the station's in-browser motion / flame / tamper analysis.
+    // Raised by the station's in-browser motion / flame / tamper analysis and person detector.
     'event-create' => ['POST', function (PDO $db, array $config) {
         api_user($db);
         $cameraId = input_int('camera_id') ?? fail('camera_id required', 422);
@@ -77,6 +77,7 @@ $routes = [
             'motion' => ['Motion detected', 'medium'],
             'fire' => ['Possible fire or smoke detected', 'critical'],
             'tamper' => ['Camera view blocked or feed lost', 'high'],
+            'person' => ['Person detected', 'high'],
         ];
         if (!isset($types[$type])) fail('Unsupported detection type', 422);
         $camera = row($db, 'SELECT name, location FROM cameras WHERE id = ?', [$cameraId]) ?? fail('Camera not found', 404);
@@ -91,6 +92,17 @@ $routes = [
         if ($existing) json_out(['event_id' => (int) $existing, 'suppressed' => true]);
 
         $snapshot = isset($_FILES['snapshot']) ? store_upload($config, uploaded_file('snapshot', ['image/jpeg' => 'jpg']), 'snapshots') : null;
+        $cloudPath = null;
+        $cloudStatus = 'not_required';
+        if ($snapshot) {
+            try {
+                $cloudPath = cloud_copy($config, $snapshot, $camera['location'], $type);
+                if ($cloudPath) $cloudStatus = 'synced';
+            } catch (RuntimeException $error) {
+                error_log('Cloud copy failed: ' . $error->getMessage());
+                $cloudStatus = 'failed';
+            }
+        }
         [$title, $severity] = $types[$type];
         $score = input_string('score', 40);
         $eventId = create_event($db, [
@@ -100,6 +112,8 @@ $routes = [
             'title' => $title,
             'description' => "{$camera['location']} ({$camera['name']})" . ($score !== '' ? " · {$score}" : ''),
             'snapshot_path' => $snapshot,
+            'cloud_backup_path' => $cloudPath,
+            'cloud_backup_status' => $cloudStatus,
         ]);
         json_out(['event_id' => $eventId, 'suppressed' => false], 201);
     }],
@@ -143,6 +157,14 @@ $routes = [
         $recordingId = (int) $db->lastInsertId();
         if ($eventId) {
             $db->prepare('UPDATE security_events SET clip_recording_id = ?, clip_path = ? WHERE id = ?')->execute([$recordingId, $relative, $eventId]);
+        }
+        try {
+            $location = (string) scalar($db, 'SELECT location FROM cameras WHERE id = ?', [$cameraId]);
+            $cloudPath = cloud_copy($config, $relative, $location, $eventId ? 'event-clip' : 'recording');
+            if ($cloudPath) $db->prepare('UPDATE recordings SET cloud_backup_path = ? WHERE id = ?')->execute([$cloudPath, $recordingId]);
+        } catch (RuntimeException $error) {
+            error_log('Cloud copy failed: ' . $error->getMessage());
+            if ($eventId) $db->prepare("UPDATE security_events SET cloud_backup_status = 'failed' WHERE id = ?")->execute([$eventId]);
         }
         audit($db, $user['id'], $eventId ? 'UPLOAD_EVENT_CLIP' : 'UPLOAD_RECORDING', 'recording', $recordingId, ['camera_id' => $cameraId, 'seconds' => $duration]);
         json_out(['recording_id' => $recordingId], 201);

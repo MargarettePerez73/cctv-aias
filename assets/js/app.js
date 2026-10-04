@@ -133,15 +133,16 @@
   )
 
   // ---------------------------------------------------------------------------
-  // Alerts: poll every 8 seconds, notify on new ones
+  // Alerts: poll every 3 seconds so detections reach every signed-in device right away
   // ---------------------------------------------------------------------------
-  const eventIcons = { motion: "tone-amber", fire: "tone-red", panic: "tone-solid-red", access: "tone-blue", tamper: "tone-violet", other: "tone-slate" }
+  const eventIcons = { motion: "tone-amber", fire: "tone-red", panic: "tone-solid-red", access: "tone-blue", tamper: "tone-violet", person: "tone-teal", other: "tone-slate" }
   const eventGlyphs = {
     motion: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
     fire: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
     panic: '<path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z"/>',
     access: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
     tamper: '<path d="m2 2 20 20"/><path d="M6.7 6.7A10.7 10.7 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.3-1.6"/><path d="M10 5.2A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-2.2 3.2"/>',
+    person: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/>',
     other: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   }
   const glyph = (type) =>
@@ -426,5 +427,5 @@
 
   window.CCTV = { api, toast, stationActive: false, pollAlerts }
   pollAlerts()
-  setInterval(pollAlerts, 8000)
+  setInterval(pollAlerts, 3000)
 })()
