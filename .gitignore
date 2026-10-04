@@ -1,0 +1,8 @@
+# Local configuration (database password)
+app/config.php
+
+# Captured footage, snapshots and relay frames
+storage/*
+!storage/.htaccess
+
+*.log
