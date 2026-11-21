@@ -10,9 +10,15 @@ $eventId = query_int('id');
 
 if (is_post() && $eventId) {
     handle_post(function () use ($db, $user, $eventId) {
+        authorize($user, 'review_events');
         $status = input_string('status', 20);
-        update_event($db, $user, $eventId, $status, input_string('notes', 2000));
-        return 'Event marked as ' . strtolower(EVENT_STATUS_LABELS[$status]) . ' and logged.';
+        $reason = input_string('reason', 40);
+        update_event($db, $user, $eventId, $status, input_string('notes', 2000), $reason);
+        return match ($status) {
+            'resolved' => 'Event resolved: ' . RESOLUTION_REASONS[$reason] . '. Saved to the audit log.',
+            'reviewing' => 'Event reopened for review and logged.',
+            default => 'Event marked as ' . strtolower(EVENT_STATUS_LABELS[$status]) . ' and logged.',
+        };
     }, "events.php?id={$eventId}");
 }
 
@@ -67,20 +73,68 @@ if ($eventId) {
       } ?></dd>
       <dt>Triggered by</dt><dd><?= e($event['triggered_by_name'] ?: 'Automatic detection') ?></dd>
       <dt>Reviewed</dt><dd><?= $event['reviewed_by_name'] ? e($event['reviewed_by_name'] . ' · ' . fmt_datetime($event['reviewed_at'])) : 'Not yet' ?></dd>
+      <?php if ($event['resolution_reason']): ?>
+        <dt>Resolution</dt><dd><?= e(RESOLUTION_REASONS[$event['resolution_reason']] ?? $event['resolution_reason']) ?></dd>
+      <?php endif; ?>
       <dt>Notes</dt><dd><?= nl2br(e($event['resolution_notes'] ?: '—')) ?></dd>
     </dl>
-    <form method="post" class="stack">
-      <?= csrf_field() ?>
-      <label class="field">Review notes
-        <textarea class="input" name="notes" rows="3" placeholder="What did you verify? Were authorities contacted?"><?= e(old('notes')) ?></textarea>
-        <small>Saved with your name (<?= e(ROLE_LABELS[$user['role']]) ?>) in the audit log</small>
-      </label>
-      <div class="button-grid">
-        <button class="btn" name="status" value="reviewing"<?= $event['status'] === 'reviewing' ? ' disabled' : '' ?>><?= icon('eye', 14) ?> Reviewing</button>
-        <button class="btn" name="status" value="false_alarm"><?= icon('x-circle', 14) ?> False alarm</button>
-        <button class="btn btn-primary span-2" name="status" value="resolved"><?= icon('check-circle', 14) ?> Mark resolved</button>
+    <?php if (in_array($event['status'], ['resolved', 'false_alarm'], true)): ?>
+      <div class="review-closed">
+        <button type="button" class="btn btn-block btn-closed" disabled>
+          <?= icon($event['status'] === 'resolved' ? 'check-circle' : 'x-circle', 16) ?>
+          <span><?= e(EVENT_STATUS_LABELS[$event['status']]) ?></span>
+        </button>
+        <form method="post" data-confirm="Reopen this event for review? It will appear under Needs review again.">
+          <?= csrf_field() ?>
+          <button class="link" name="status" value="reviewing"><?= icon('refresh', 13) ?> Reopen event</button>
+        </form>
       </div>
-    </form>
+    <?php else:
+        $resolving = old('status') === 'resolved'; ?>
+      <form method="post" class="stack">
+        <?= csrf_field() ?>
+        <label class="field">Review notes
+          <textarea class="input" name="notes" rows="3" placeholder="What did you verify? Were authorities contacted?"><?= $resolving ? '' : e(old('notes')) ?></textarea>
+          <small>Saved with your name (<?= e(ROLE_LABELS[$user['role']]) ?>) in the audit log</small>
+        </label>
+        <div class="button-grid">
+          <button class="btn" name="status" value="reviewing"<?= $event['status'] === 'reviewing' ? ' disabled' : '' ?>><?= icon('eye', 14) ?> <?= $event['status'] === 'reviewing' ? 'Under review' : 'Reviewing' ?></button>
+          <button class="btn" name="status" value="false_alarm"><?= icon('x-circle', 14) ?> False alarm</button>
+          <button type="button" class="btn btn-primary span-2" data-dialog-open="resolve-dialog"><?= icon('check-circle', 14) ?> Mark resolved</button>
+        </div>
+      </form>
+
+      <dialog class="modal" id="resolve-dialog" aria-labelledby="resolve-title"<?= $resolving ? ' data-open-on-load' : '' ?>>
+        <form method="post" class="modal-form" data-resolve-form>
+          <?= csrf_field() ?>
+          <input type="hidden" name="status" value="resolved">
+          <div class="modal-head">
+            <span class="icon-box tone-green big"><?= icon('shield-check', 22) ?></span>
+            <div>
+              <h3 id="resolve-title">Resolve this event</h3>
+              <p>What happened? Your answer is saved with your name in the audit log.</p>
+            </div>
+            <button type="button" class="icon-btn" data-dialog-close aria-label="Close"><?= icon('x', 15) ?></button>
+          </div>
+          <fieldset class="reasons">
+            <legend>Reason for resolution</legend>
+            <?php foreach (RESOLUTION_REASONS as $value => $label): ?>
+              <label class="reason">
+                <input type="radio" name="reason" value="<?= e($value) ?>" required<?= checked(old('reason') === $value) ?>>
+                <span><?= e($label) ?></span>
+              </label>
+            <?php endforeach; ?>
+          </fieldset>
+          <label class="field">Details <span class="muted" data-notes-hint>(optional)</span>
+            <textarea class="input" name="notes" rows="3" maxlength="2000" placeholder="e.g. Guard checked the stock room, nothing missing" data-reason-notes><?= $resolving ? e(old('notes')) : '' ?></textarea>
+          </label>
+          <div class="modal-actions">
+            <button type="button" class="btn" data-dialog-close>Cancel</button>
+            <button class="btn btn-primary"><?= icon('check-circle', 14) ?> Confirm resolved</button>
+          </div>
+        </form>
+      </dialog>
+    <?php endif; ?>
     <?php if ($urgent): ?>
       <a class="btn btn-outline-danger btn-block" href="tel:911"><?= icon('phone', 14) ?> Real emergency? Call 911</a>
     <?php endif; ?>

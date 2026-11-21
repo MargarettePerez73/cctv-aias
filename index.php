@@ -51,7 +51,6 @@ render_header($db, $user, 'Overview');
   </div>
   <div class="page-actions">
     <a class="btn" href="cameras.php"><?= icon('video', 16) ?> Live cameras</a>
-    <?= panic_button() ?>
   </div>
 </section>
 

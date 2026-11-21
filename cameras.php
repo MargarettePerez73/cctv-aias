@@ -24,7 +24,7 @@ page_header(
         . '<button type="button" data-layout="1" title="Single column">' . icon('square', 15) . '</button>'
         . '<button type="button" data-layout="2" class="active" title="2 × 2 grid">' . icon('columns', 15) . '</button>'
         . '<button type="button" data-layout="3" title="3 columns">' . icon('grid', 15) . '</button>'
-        . '</div>' . panic_button()
+        . '</div>'
 );
 ?>
 <div class="card station-panel" data-station-panel>

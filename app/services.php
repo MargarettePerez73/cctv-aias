@@ -12,6 +12,17 @@ const EVENT_STATUS_LABELS = [
     'false_alarm' => 'False alarm',
 ];
 
+/** Reasons offered when resolving an event. "other" must be explained in the notes. */
+const RESOLUTION_REASONS = [
+    'no_threat' => 'Checked on site: no threat found',
+    'normal_activity' => 'Normal customer or staff activity',
+    'handled_on_site' => 'Handled by staff or security guard',
+    'authorities_called' => 'Police or authorities were called',
+    'equipment_issue' => 'Camera or sensor issue: maintenance requested',
+    'drill_or_test' => 'Drill or system test',
+    'other' => 'Other (please specify)',
+];
+
 const EVENT_TYPE_LABELS = [
     'motion' => 'Motion',
     'fire' => 'Fire',
@@ -287,16 +298,30 @@ function trigger_panic(PDO $db, array $user, string $location): int {
     return $eventId;
 }
 
-function update_event(PDO $db, array $user, int $id, string $status, string $notes): void {
+/** Changes an event's review status. Resolving needs a reason; setting any other status clears it. */
+function update_event(PDO $db, array $user, int $id, string $status, string $notes, string $reason = ''): void {
     if (!in_array($status, EVENT_STATUSES, true)) fail('Invalid status', 422);
-    $statement = $db->prepare(
-        "UPDATE security_events SET status = ?, reviewed_by = ?, reviewed_at = NOW(),
+    $notes = trim(mb_substr($notes, 0, 2000));
+    $current = scalar($db, 'SELECT status FROM security_events WHERE id = ?', [$id]);
+    if ($current === false) fail('Event not found', 404);
+    if ($current === $status) fail('This event is already marked as ' . strtolower(EVENT_STATUS_LABELS[$status]) . '.', 409);
+    if ($status === 'resolved') {
+        if (!isset(RESOLUTION_REASONS[$reason])) fail('Choose a reason for resolving this event.', 422);
+        if ($reason === 'other' && $notes === '') fail('Describe how the event was resolved.', 422);
+    } else {
+        $reason = '';
+    }
+    $db->prepare(
+        "UPDATE security_events SET status = ?, reviewed_by = ?, reviewed_at = NOW(), resolution_reason = ?,
                 resolution_notes = COALESCE(NULLIF(?, ''), resolution_notes)
          WHERE id = ?"
-    );
-    $statement->execute([$status, $user['id'], mb_substr($notes, 0, 2000), $id]);
-    if ($statement->rowCount() === 0) fail('Event not found', 404);
-    audit($db, $user['id'], 'UPDATE_EVENT', 'security_event', $id, ['status' => $status]);
+    )->execute([$status, $user['id'], $reason ?: null, $notes, $id]);
+    audit($db, $user['id'], 'UPDATE_EVENT', 'security_event', $id, array_filter([
+        'from' => $current,
+        'status' => $status,
+        'reason' => $reason,
+        'notes' => $notes,
+    ]));
 }
 
 // ---------------------------------------------------------------------------

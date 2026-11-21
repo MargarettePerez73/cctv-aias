@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>BantayRx</title>
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffb24f"/>
+      <stop offset=".5" stop-color="#f26a0f"/>
+      <stop offset="1" stop-color="#b3430a"/>
+    </linearGradient>
+    <linearGradient id="iris" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff8a2a"/>
+      <stop offset="1" stop-color="#b8450a"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="clip"><path d="M32 4 53 11.5V30c0 14-9.5 24.5-21 30C20.5 54.5 11 44 11 30V11.5Z"/></clipPath>
+  </defs>
+  <path d="M32 4 53 11.5V30c0 14-9.5 24.5-21 30C20.5 54.5 11 44 11 30V11.5Z" fill="url(#body)"/>
+  <ellipse cx="32" cy="12" rx="22" ry="11" fill="url(#gloss)" clip-path="url(#clip)"/>
+  <path d="M17 31c4.5-7.5 9.5-11 15-11s10.5 3.5 15 11c-4.5 7.5-9.5 11-15 11s-10.5-3.5-15-11Z" fill="#fff"/>
+  <circle cx="32" cy="31" r="8.5" fill="url(#iris)"/>
+  <rect x="30.4" y="25.5" width="3.2" height="11" rx="1.1" fill="#fff"/>
+  <rect x="26.5" y="29.4" width="11" height="3.2" rx="1.1" fill="#fff"/>
+</svg>

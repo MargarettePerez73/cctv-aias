@@ -50,7 +50,84 @@
     item.textContent = message
     container.append(item)
     while (container.children.length > 4) container.firstElementChild.remove()
-    setTimeout(() => item.remove(), tone === "danger" ? 7000 : 3500)
+    setTimeout(() => dismiss(item), tone === "danger" ? 7000 : 3500)
+    item.addEventListener("click", () => dismiss(item))
+  }
+
+  function dismiss(item) {
+    if (!item.isConnected || item.classList.contains("leaving")) return
+    item.classList.add("leaving")
+    item.addEventListener("animationend", () => item.remove(), { once: true })
+    setTimeout(() => item.remove(), 600) // in case animations are disabled
+  }
+
+  // ---------------------------------------------------------------------------
+  // Motion: click ripples, cursor-following gloss, tilting stat tiles, counting numbers.
+  // Purely visual; everything works the same without it.
+  // ---------------------------------------------------------------------------
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+  if (!reduceMotion) {
+    const rippleTargets = ".btn, .icon-btn, .nav-link, .tab, .menu-item, .cam-btn, .segmented button"
+    document.addEventListener("pointerdown", (event) => {
+      const target = event.target.closest(rippleTargets)
+      if (!target || target.disabled || target.classList.contains("disabled")) return
+      const rect = target.getBoundingClientRect()
+      const size = Math.max(rect.width, rect.height)
+      const ripple = document.createElement("span")
+      ripple.className = "ripple"
+      ripple.style.cssText = `width:${size}px;height:${size}px;left:${event.clientX - rect.left - size / 2}px;top:${event.clientY - rect.top - size / 2}px`
+      target.append(ripple)
+      ripple.addEventListener("animationend", () => ripple.remove(), { once: true })
+    })
+
+    // Gloss highlight that follows the pointer across glass surfaces, plus a soft tilt on stat tiles.
+    let frame = 0
+    document.addEventListener("pointermove", (event) => {
+      if (event.pointerType !== "mouse" || frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        const surface = event.target.closest?.(".card, .health, .auth-card")
+        if (!surface) return
+        const rect = surface.getBoundingClientRect()
+        const x = event.clientX - rect.left
+        const y = event.clientY - rect.top
+        surface.style.setProperty("--mx", `${x}px`)
+        surface.style.setProperty("--my", `${y}px`)
+        if (surface.classList.contains("stat")) {
+          const rx = ((y / rect.height) - 0.5) * -8
+          const ry = ((x / rect.width) - 0.5) * 10
+          surface.style.transform = `perspective(700px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) translateY(-5px)`
+        }
+      })
+    })
+    document.addEventListener("pointerout", (event) => {
+      const surface = event.target.closest?.(".card, .health, .auth-card")
+      if (!surface || surface.contains(event.relatedTarget)) return
+      surface.style.removeProperty("--mx")
+      surface.style.removeProperty("--my")
+      surface.style.removeProperty("transform")
+    })
+
+    // Count dashboard numbers up from zero ("3 / 4" counts the 3, "12 days" counts the 12).
+    $$(".stat-value").forEach((element, index) => {
+      const match = element.textContent.trim().match(/^(\d+(?:\.\d+)?)(.*)$/s)
+      if (!match) return
+      const target = Number(match[1])
+      const decimals = (match[1].split(".")[1] ?? "").length
+      const rest = match[2]
+      if (!target) return
+      const duration = 1100
+      const start = performance.now() + index * 90
+      const step = (now) => {
+        const progress = Math.min(1, Math.max(0, (now - start) / duration))
+        const eased = 1 - Math.pow(1 - progress, 4)
+        element.textContent = (target * eased).toFixed(decimals) + rest
+        if (progress < 1) requestAnimationFrame(step)
+      }
+      element.textContent = (0).toFixed(decimals) + rest
+      requestAnimationFrame(step)
+    })
   }
 
   // ---------------------------------------------------------------------------
@@ -112,18 +189,59 @@
   $$("[data-sidebar-open]").forEach((button) => button.addEventListener("click", () => document.body.classList.add("sidebar-open")))
   $$("[data-sidebar-close]").forEach((button) => button.addEventListener("click", () => document.body.classList.remove("sidebar-open")))
 
+  const closeDropdowns = () => {
+    $$(".dropdown-panel").forEach((panel) => (panel.hidden = true))
+    $$("[data-dropdown-toggle]").forEach((toggle) => toggle.setAttribute("aria-expanded", "false"))
+  }
   $$("[data-dropdown-toggle]").forEach((toggle) => {
     const panel = toggle.parentElement.querySelector(".dropdown-panel")
+    toggle.setAttribute("aria-expanded", "false")
     toggle.addEventListener("click", (event) => {
       event.stopPropagation()
       const opening = panel.hidden
-      $$(".dropdown-panel").forEach((other) => (other.hidden = true))
+      closeDropdowns()
       panel.hidden = !opening
-      if (opening && toggle.closest("[data-alerts]")) renderAlerts()
+      toggle.setAttribute("aria-expanded", String(opening))
+      if (opening && toggle.closest("[data-alerts]")) {
+        // Alert rows animate in when the panel opens, not on every 3-second refresh.
+        const list = $("[data-alerts-list]")
+        list?.classList.remove("settled")
+        renderAlerts()
+        setTimeout(() => list?.classList.add("settled"), 700)
+      }
     })
   })
   document.addEventListener("click", (event) => {
-    if (!event.target.closest(".dropdown")) $$(".dropdown-panel").forEach((panel) => (panel.hidden = true))
+    if (!event.target.closest(".dropdown")) closeDropdowns()
+  })
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeDropdowns()
+  })
+
+  // Pop-up dialogs: [data-dialog-open="id"] opens, [data-dialog-close] or a click on the backdrop closes.
+  $$("[data-dialog-open]").forEach((button) =>
+    button.addEventListener("click", () => document.getElementById(button.dataset.dialogOpen)?.showModal()),
+  )
+  $$("dialog.modal").forEach((dialog) => {
+    $$("[data-dialog-close]", dialog).forEach((button) => button.addEventListener("click", () => dialog.close()))
+    dialog.addEventListener("click", (event) => event.target === dialog && dialog.close())
+    if ("openOnLoad" in dialog.dataset) dialog.showModal() // reopen after a validation error
+  })
+
+  // Resolve dialog: "Other" needs a written explanation.
+  $$("[data-resolve-form]").forEach((form) => {
+    const notes = $("[data-reason-notes]", form)
+    const hint = $("[data-notes-hint]", form)
+    const sync = (focus) => {
+      const other = form.elements.reason.value === "other"
+      notes.required = other
+      hint.textContent = other ? "(required)" : "(optional)"
+      hint.classList.toggle("text-danger", other)
+      if (other && focus) notes.focus()
+    }
+    form.addEventListener("change", (event) => event.target.name === "reason" && sync(true))
+    form.addEventListener("submit", () => $$("button", form).forEach((button) => (button.disabled = true)))
+    sync(false)
   })
 
   $$("form[data-confirm]").forEach((form) =>

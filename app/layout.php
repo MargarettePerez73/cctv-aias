@@ -64,6 +64,29 @@ function icon(string $name, int $size = 18, string $class = ''): string {
     return '<svg class="icon ' . e($class) . '" width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $inner . '</svg>';
 }
 
+const APP_NAME = 'BantayRx';
+
+/** BantayRx mark: a shield holding a watchful eye with a medical-cross pupil (same drawing as assets/img/logo.svg). */
+function logo_mark(): string {
+    static $n = 0;
+    $id = 'logo' . ++$n;
+    $shield = 'M32 4 53 11.5V30c0 14-9.5 24.5-21 30C20.5 54.5 11 44 11 30V11.5Z';
+    return '<svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><defs>'
+        . "<linearGradient id=\"{$id}b\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#ffb24f\"/><stop offset=\".5\" stop-color=\"#f26a0f\"/><stop offset=\"1\" stop-color=\"#b3430a\"/></linearGradient>"
+        . "<linearGradient id=\"{$id}i\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#ff8a2a\"/><stop offset=\"1\" stop-color=\"#b8450a\"/></linearGradient>"
+        . "<linearGradient id=\"{$id}g\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\".55\"/><stop offset=\"1\" stop-color=\"#fff\" stop-opacity=\"0\"/></linearGradient>"
+        . "<clipPath id=\"{$id}c\"><path d=\"{$shield}\"/></clipPath></defs>"
+        . "<path d=\"{$shield}\" fill=\"url(#{$id}b)\"/>"
+        . "<ellipse cx=\"32\" cy=\"12\" rx=\"22\" ry=\"11\" fill=\"url(#{$id}g)\" clip-path=\"url(#{$id}c)\"/>"
+        . '<path class="logo-eye" d="M17 31c4.5-7.5 9.5-11 15-11s10.5 3.5 15 11c-4.5 7.5-9.5 11-15 11s-10.5-3.5-15-11Z" fill="#fff"/>'
+        . "<g class=\"logo-iris\"><circle cx=\"32\" cy=\"31\" r=\"8.5\" fill=\"url(#{$id}i)\"/>"
+        . '<rect x="30.4" y="25.5" width="3.2" height="11" rx="1.1" fill="#fff"/><rect x="26.5" y="29.4" width="11" height="3.2" rx="1.1" fill="#fff"/></g></svg>';
+}
+
+function brand_wordmark(): string {
+    return 'Bantay<span class="brand-rx">Rx</span>';
+}
+
 const EVENT_ICONS = [
     'motion' => ['activity', 'tone-amber'],
     'fire' => ['flame', 'tone-red'],
@@ -124,8 +147,10 @@ function render_head(string $title): void {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f26a0f">
   <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
-  <title><?= e($title) ?> · CCTV Media Management</title>
+  <title><?= e($title) ?> · <?= APP_NAME ?></title>
+  <link rel="icon" href="assets/img/logo.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="assets/css/app.css">
@@ -146,8 +171,8 @@ function render_header(PDO $db, array $user, string $title): void {
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
     <a href="index.php" class="brand">
-      <span class="brand-mark"><?= icon('shield', 19) ?></span>
-      <span><strong>Sentinel</strong><small>CCTV CONTROL</small></span>
+      <span class="brand-mark"><?= logo_mark() ?></span>
+      <span><strong><?= brand_wordmark() ?></strong><small>PHARMACY SECURITY</small></span>
     </a>
     <button class="sidebar-close" data-sidebar-close aria-label="Close menu"><?= icon('x', 19) ?></button>
   </div>
@@ -190,6 +215,7 @@ function render_header(PDO $db, array $user, string $title): void {
         </div>
       </div>
       <div class="topbar-actions">
+        <?= panic_button('Service counter', true) ?>
         <div class="dropdown" data-alerts>
           <button type="button" class="bell" data-dropdown-toggle aria-label="Alerts">
             <?= icon('bell', 17) ?>
@@ -246,8 +272,9 @@ function page_header(string $title, string $description = '', string $actions = 
 }
 
 /** Two taps within 4 seconds: fast during a robbery, but a stray click does not sound the siren. */
-function panic_button(string $location = 'Service counter'): string {
-    return '<button type="button" class="btn btn-danger" data-panic data-location="' . e($location) . '">' . icon('siren', 16) . '<span>Panic alarm</span></button>';
+function panic_button(string $location = 'Service counter', bool $inHeader = false): string {
+    return '<button type="button" class="btn btn-danger' . ($inHeader ? ' btn-panic-header' : '') . '" data-panic data-location="' . e($location) . '" title="Panic alarm: tap twice to sound the siren">'
+        . icon('siren', 16) . '<span>Panic alarm</span></button>';
 }
 
 /** Minimal full-screen layout for sign-in and error screens. */
@@ -257,8 +284,8 @@ function render_auth_start(string $title): void {
 <body class="auth-body">
 <div class="auth-wrap">
   <div class="auth-brand">
-    <span class="brand-mark"><?= icon('shield', 20) ?></span>
-    <span><strong>Sentinel</strong><small>CCTV MEDIA MANAGEMENT</small></span>
+    <span class="brand-mark"><?= logo_mark() ?></span>
+    <span><strong><?= brand_wordmark() ?></strong><small>PHARMACY CCTV &amp; SECURITY</small></span>
   </div>
 <?php
 }

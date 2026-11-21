@@ -68,6 +68,10 @@ function migrations(): array {
             "ALTER TABLE recordings ADD COLUMN IF NOT EXISTS cloud_backup_path VARCHAR(500) NULL AFTER checksum_sha256",
             "INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('person_detection_enabled', '1')",
         ],
+        // Resolving an event records why (RESOLUTION_REASONS); "other" is explained in resolution_notes.
+        '2026_11_21_001_event_resolution_reason' => [
+            "ALTER TABLE security_events ADD COLUMN IF NOT EXISTS resolution_reason VARCHAR(40) NULL AFTER resolution_notes",
+        ],
     ];
 }
 
